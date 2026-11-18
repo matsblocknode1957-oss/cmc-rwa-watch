@@ -4,6 +4,7 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
+    "start":   "node collector.js",
     "collect": "node collector.js",
     "dry":     "cross-env DRY_RUN=true node collector.js"
   },
