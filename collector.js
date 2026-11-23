@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { ethers } from 'ethers';
 import { createClient } from '@supabase/supabase-js';
+import { processAlerts } from './alerts.js';
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const CMC_KEY  = process.env.CMC_API_KEY;
@@ -349,6 +350,9 @@ async function collect() {
   } else {
     await insertRows(supabase, rows);
   }
+
+  // 6. Process alerts — reads DB for state/prev-poll, writes rwa_alerts (skipped in DRY_RUN)
+  await processAlerts({ rows, clData: cl, supabase, dryRun: DRY_RUN, collectedAt });
 
   return rows;
 }
