@@ -7,7 +7,8 @@ const CMC_KEY  = process.env.CMC_API_KEY;
 const SUPA_URL = process.env.SUPABASE_URL;
 const SUPA_KEY = process.env.SUPABASE_ANON_KEY;
 const ARB_RPC  = process.env.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc';
-const DRY_RUN  = process.env.DRY_RUN === 'true' || !SUPA_URL || !SUPA_KEY;
+const DRY_RUN  = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true'
+              || !SUPA_URL || !SUPA_KEY;
 
 // ── Asset config ──────────────────────────────────────────────────────────────
 // rwa_id: from /v5/real-world-assets/assets/list (confirmed via probe-output).
@@ -15,10 +16,8 @@ const DRY_RUN  = process.env.DRY_RUN === 'true' || !SUPA_URL || !SUPA_KEY;
 // clAddress: Chainlink AggregatorV3 proxy on Arbitrum One.
 //   Verified at startup via description().  null = no feed, gap_pct stays null.
 //
-// Weekend / holiday rule: gap_pct (vs Chainlink) is NULL on non-trading days.
-//   The 24/7 XAU/USD feed is NOT used as a weekend reference because it may be
-//   derived from PAXG/XAUt prices, which would be circular.
-//   gap_vs_peers_pct (intra-token spread) is computed every day regardless.
+// gap_pct is computed at all hours using price_adj_usd; market_open is metadata only.
+// gap_vs_peers_pct (intra-token spread) is computed every poll regardless.
 //
 // Alert threshold: 1%.  Equity feeds update on 0.5% moves → 1% = real signal.
 const ASSETS = {
@@ -28,6 +27,8 @@ const ASSETS = {
   SPY:  { rwa_id: 86,  preferToken: 'SPYB',  clAddress: '0x46306F3795342117721D8DEd50fbcF6DF2b3cc10' },
   QQQ:  { rwa_id: 118, preferToken: 'QQQB',  clAddress: null }, // no Arbitrum feed
 };
+
+const TROY_OZ_PER_GRAM = 31.1035;
 
 // ── Chainlink (AggregatorV3) ───────────────────────────────────────────────────
 const AGG_ABI = [
@@ -81,11 +82,23 @@ const EARLY_CLOSE = new Set([
 function isNYSEOpen() {
   if (isWeekend()) return false;
   const now     = new Date();
-  const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD in UTC
+  const dateStr = now.toISOString().slice(0, 10);
   if (FULL_CLOSE.has(dateStr)) return false;
   const mins     = now.getUTCHours() * 60 + now.getUTCMinutes();
   const closeUTC = EARLY_CLOSE.has(dateStr) ? 1080 : 1260; // 18:00 or 21:00 UTC
   return mins >= 870 && mins < closeUTC; // open from 14:30 UTC (9:30 AM ET, EST)
+}
+
+// Gold: open Sun 23:00 UTC – Fri 22:00 UTC, daily break 22:00–23:00 UTC.
+function isGoldOpen() {
+  const now  = new Date();
+  const day  = now.getUTCDay();   // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
+  const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
+  if (day === 6)                           return false; // Saturday: closed
+  if (day === 0 && mins < 23 * 60)        return false; // Sunday before 23:00
+  if (day === 5 && mins >= 22 * 60)       return false; // Friday 22:00+: closed for week
+  if (mins >= 22 * 60 && mins < 23 * 60) return false; // daily break Mon–Thu
+  return true;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -96,6 +109,46 @@ function median(arr) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+// Returns a Set of crypto_ids whose last 8 stored prices are all identical.
+async function fetchStalePrices(supabase, cryptoIds) {
+  const staleIds = new Set();
+  for (const id of cryptoIds) {
+    if (id == null) continue;
+    try {
+      const { data, error } = await supabase
+        .from('rwa_quotes')
+        .select('token_price_usd')
+        .eq('crypto_id', id)
+        .order('collected_at', { ascending: false })
+        .limit(8);
+      if (error) { console.warn(`  stale check crypto_id=${id}: ${error.message}`); continue; }
+      if (data && data.length === 8) {
+        const p0 = data[0].token_price_usd;
+        if (data.every(r => r.token_price_usd === p0)) staleIds.add(id);
+      }
+    } catch (e) { console.warn(`  stale check crypto_id=${id}: ${e.message}`); }
+  }
+  return staleIds;
+}
+
+// Insert rows, retrying without new columns if sql/002_alerts.sql hasn't been run yet.
+async function insertRows(db, rows) {
+  const { error } = await db.from('rwa_quotes').insert(rows);
+  if (!error) {
+    console.log(`\nInserted ${rows.length} rows into rwa_quotes.`);
+    return;
+  }
+  if (error.message.includes('excluded_reason') || error.message.includes('price_adj_usd')) {
+    console.warn('\nWarning: new columns not in DB yet — run sql/002_alerts.sql. Inserting without them.');
+    const stripped = rows.map(({ excluded_reason, price_adj_usd, ...rest }) => rest);
+    const { error: e2 } = await db.from('rwa_quotes').insert(stripped);
+    if (e2) throw new Error(`Supabase insert: ${e2.message}`);
+    console.log(`\nInserted ${rows.length} rows into rwa_quotes (without new columns).`);
+    return;
+  }
+  throw new Error(`Supabase insert: ${error.message}`);
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function collect() {
   if (!CMC_KEY) { console.error('CMC_API_KEY is required'); process.exit(1); }
@@ -103,7 +156,8 @@ async function collect() {
   const collectedAt = new Date().toISOString();
   const weekend     = isWeekend();
   const marketOpen  = isNYSEOpen();
-  console.log(`\n[${collectedAt}]  weekend=${weekend}  market_open=${marketOpen}  dry_run=${DRY_RUN}`);
+  const goldOpen    = isGoldOpen();
+  console.log(`\n[${collectedAt}]  weekend=${weekend}  market_open=${marketOpen}  gold_open=${goldOpen}  dry_run=${DRY_RUN}`);
 
   // 1. Read all Chainlink feeds in parallel — description() printed per feed
   console.log('\nChainlink:');
@@ -124,8 +178,7 @@ async function collect() {
   const rwaList  = cmcJson.data?.rwa_assets ?? [];
 
   // Pre-pass: build valid peer pool per asset.
-  // "Valid" = non-unit_mismatch and non-null price/symbol.
-  // Used to compute gap_vs_peers_pct for every token (weekends included).
+  // "Valid" = not unit_mismatch by raw price check and non-null price/symbol.
   const validPeers = {};
   for (const [sym, cfg] of Object.entries(ASSETS)) {
     const rwa = rwaList.find(a => a.rwa_id === cfg.rwa_id);
@@ -138,6 +191,22 @@ async function collect() {
       .filter(t => !(avg > 0 && Math.abs(t.price - avg) / avg > 0.30))
       .map(t => ({ crypto_id: t.crypto_id ?? null, symbol: t.symbol, price: t.price }));
   }
+
+  // Collect unique crypto_ids for stale check
+  const allCryptoIds = new Set();
+  for (const [, cfg] of Object.entries(ASSETS)) {
+    const rwa = rwaList.find(a => a.rwa_id === cfg.rwa_id);
+    if (!rwa) continue;
+    for (const token of (rwa.tokens ?? [])) {
+      if (token.crypto_id != null) allCryptoIds.add(token.crypto_id);
+    }
+  }
+
+  // Fetch stale prices from DB if credentials available (runs even during explicit dry run)
+  const canReadDb = !!(SUPA_URL && SUPA_KEY);
+  const supabase  = canReadDb ? createClient(SUPA_URL, SUPA_KEY) : null;
+  let staleIds = new Set();
+  if (supabase) staleIds = await fetchStalePrices(supabase, [...allCryptoIds]);
 
   // 3. Build rows — one row per token per poll
   const rows    = [];
@@ -152,29 +221,48 @@ async function collect() {
                   ?? null;
     const ref = cl[sym] ?? null;
 
+    // market_open reflects the relevant exchange for each asset type
+    const assetMarketOpen = sym === 'GOLD' ? goldOpen : marketOpen;
+
     let stored = 0, skipped = 0, flagged = 0;
-    const clGaps   = []; // for per-asset summary
+    const clGaps   = [];
     const peerGaps = [];
 
     for (const token of (rwa.tokens ?? [])) {
       if (token.price == null || token.symbol == null) { skipped++; continue; }
 
-      // Tokens >30% from the asset average are almost certainly in a different unit
-      // (e.g. CGO/VNXAU price gold per gram ~$123 vs per troy oz ~$3,840)
-      const unitMismatch = avgPrice != null && avgPrice > 0
+      let unitMismatch = avgPrice != null && avgPrice > 0
         && Math.abs(token.price - avgPrice) / avgPrice > 0.30;
+
+      // Per-gram gold correction: if token appears priced per gram, convert to troy oz
+      let priceAdjUsd = token.price;
+      if (sym === 'GOLD' && unitMismatch && ref?.price != null && ref.price > 0) {
+        const adjusted = token.price * TROY_OZ_PER_GRAM;
+        if (Math.abs(adjusted - ref.price) / ref.price <= 0.03) {
+          priceAdjUsd = adjusted;
+          unitMismatch = false;
+        }
+      }
+
       if (unitMismatch) flagged++;
 
-      // Chainlink gap: null when market closed (weekends, holidays, off-hours),
-      // null for unit_mismatch, null if no feed
+      // Excluded reason takes priority: hyperliquid perpetual, then stale feed
+      let excludedReason = null;
+      if (token.issuer_name === 'Hyperliquid Assets') {
+        excludedReason = 'hyperliquid_perp';
+      } else if (token.crypto_id != null && staleIds.has(token.crypto_id)) {
+        excludedReason = 'stale';
+      }
+
+      // gap_pct: price_adj_usd vs Chainlink at all hours; null if excluded, unit_mismatch, or no feed
       let gapPct = null;
-      if (marketOpen && !unitMismatch && ref?.price != null && ref.price !== 0) {
-        gapPct = ((token.price - ref.price) / ref.price) * 100;
+      if (excludedReason === null && !unitMismatch && ref?.price != null && ref.price !== 0) {
+        gapPct = ((priceAdjUsd - ref.price) / ref.price) * 100;
       }
       const alert = gapPct != null && Math.abs(gapPct) >= 1.0;
       if (gapPct != null) clGaps.push(gapPct);
 
-      // Peer gap: exclude self by crypto_id (fall back to symbol if id absent)
+      // Peer gap: compare price_adj_usd against median of valid peers (excludes self)
       let gapVsPeersPct = null;
       if (!unitMismatch) {
         const selfId   = token.crypto_id ?? null;
@@ -183,7 +271,7 @@ async function collect() {
           .map(p => p.price);
         const peerMed  = median(others);
         if (peerMed != null && peerMed !== 0) {
-          gapVsPeersPct = (token.price - peerMed) / peerMed * 100;
+          gapVsPeersPct = (priceAdjUsd - peerMed) / peerMed * 100;
         }
         if (gapVsPeersPct != null) peerGaps.push(gapVsPeersPct);
       }
@@ -205,9 +293,11 @@ async function collect() {
         gap_pct:             gapPct,
         gap_vs_peers_pct:    gapVsPeersPct,
         alert,
-        market_open:         marketOpen,
+        market_open:         assetMarketOpen,
         weekend,
         chainlink_feed:      cfg.clAddress ?? null,
+        excluded_reason:     excludedReason,
+        price_adj_usd:       priceAdjUsd,
       });
       stored++;
     }
@@ -239,14 +329,25 @@ async function collect() {
   }
   console.log(`  Total: ${total} rows`);
 
-  // 5. Write
+  // 5. Write or dry-run
   if (DRY_RUN) {
-    console.log('\n[DRY RUN] — no DB write (set SUPABASE_URL + SUPABASE_ANON_KEY to enable)');
+    console.log('\n[DRY RUN] Would insert:');
+    for (const row of rows) {
+      console.log(JSON.stringify({
+        asset:           row.asset,
+        token_symbol:    row.token_symbol,
+        issuer:          row.issuer,
+        token_price_usd: row.token_price_usd,
+        price_adj_usd:   row.price_adj_usd,
+        unit_mismatch:   row.unit_mismatch,
+        excluded_reason: row.excluded_reason,
+        gap_pct:         row.gap_pct,
+        alert:           row.alert,
+      }));
+    }
+    console.log(`\n[DRY RUN] ${rows.length} rows — no DB write.`);
   } else {
-    const db = createClient(SUPA_URL, SUPA_KEY);
-    const { error } = await db.from('rwa_quotes').insert(rows);
-    if (error) throw new Error(`Supabase insert: ${error.message}`);
-    console.log(`\nInserted ${rows.length} rows into rwa_quotes.`);
+    await insertRows(supabase, rows);
   }
 
   return rows;
