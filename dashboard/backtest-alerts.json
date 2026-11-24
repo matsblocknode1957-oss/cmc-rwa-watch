@@ -1,0 +1,68 @@
+[
+  {
+    "time": "2026-11-21T22:17:14.006+00:00",
+    "asset": "NVDA",
+    "alert_type": "divergence",
+    "event": "open",
+    "market_state": "closed",
+    "gap_pct": 3.101,
+    "token_median": 131.08,
+    "chainlink_price": 127.14,
+    "chainlink_age_min": 20
+  },
+  {
+    "time": "2026-11-22T10:15:13.699+00:00",
+    "asset": "TSLA",
+    "alert_type": "divergence",
+    "event": "open",
+    "market_state": "closed",
+    "gap_pct": 3.3197,
+    "token_median": 357.3,
+    "chainlink_price": 345.82,
+    "chainlink_age_min": 467
+  },
+  {
+    "time": "2026-11-23T14:30:50.085+00:00",
+    "asset": "SPY",
+    "alert_type": "divergence",
+    "event": "open",
+    "market_state": "open",
+    "gap_pct": 2.5141,
+    "token_median": 724.67,
+    "chainlink_price": 706.9,
+    "chainlink_age_min": 0
+  },
+  {
+    "time": "2026-11-23T14:30:50.085+00:00",
+    "asset": "NVDA",
+    "alert_type": "divergence",
+    "event": "close",
+    "market_state": "open",
+    "gap_pct": -0.2351,
+    "token_median": 165.98,
+    "chainlink_price": 166.37,
+    "chainlink_age_min": 0
+  },
+  {
+    "time": "2026-11-23T14:30:50.085+00:00",
+    "asset": "TSLA",
+    "alert_type": "divergence",
+    "event": "close",
+    "market_state": "open",
+    "gap_pct": -0.2268,
+    "token_median": 374.52,
+    "chainlink_price": 375.37,
+    "chainlink_age_min": 0
+  },
+  {
+    "time": "2026-11-23T14:47:26.67+00:00",
+    "asset": "SPY",
+    "alert_type": "divergence",
+    "event": "close",
+    "market_state": "open",
+    "gap_pct": 0.0175,
+    "token_median": 718.58,
+    "chainlink_price": 718.45,
+    "chainlink_age_min": 1
+  }
+]

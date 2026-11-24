@@ -1,6 +1,7 @@
 // scripts/backtest-alerts.js
 // Replays all rwa_quotes rows through the alert logic in-memory (no DB writes).
 // Saves output to data-out/backtest-alerts.md
+// Pass --json to also write dashboard/backtest-alerts.json
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
@@ -11,6 +12,7 @@ import { computeAlerts, computeStaleIds, rehydrateRows } from '../alerts.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ASSETS_WITH_CL = ['SPY', 'NVDA', 'TSLA', 'GOLD'];
+const writeJson = process.argv.includes('--json');
 
 function fmtAge(pollTime, updatedAt) {
   if (!updatedAt || !pollTime) return '—';
@@ -63,6 +65,7 @@ async function main() {
 
   const lines = [];
   const emit  = (s) => { console.log(s); lines.push(s); };
+  const jsonEvents = [];
 
   emit(`# Backtest: Alert Replay`);
   emit(`\nReplayed **${pollTimes.length}** polls — ${pollTimes[0]} → ${pollTimes.at(-1)}`);
@@ -123,6 +126,20 @@ async function main() {
       const clStr  = e.chainlink_price != null ? '$' + e.chainlink_price.toFixed(2) : '—';
       const ageStr = fmtAge(pollTime, e.chainlink_updated_at);
       emit(`| ${pollTime} | ${e.asset} | ${e.alert_type} | **${e.event}** | ${e.market_state ?? '—'} | ${gapStr} | ${medStr} | ${clStr} | ${ageStr} |`);
+      if (writeJson) {
+        const ageMs = e.chainlink_updated_at ? new Date(pollTime) - new Date(e.chainlink_updated_at) : null;
+        jsonEvents.push({
+          time:              pollTime,
+          asset:             e.asset,
+          alert_type:        e.alert_type,
+          event:             e.event,
+          market_state:      e.market_state ?? null,
+          gap_pct:           e.gap_pct != null ? Math.round(e.gap_pct * 10000) / 10000 : null,
+          token_median:      e.token_median != null ? Math.round(e.token_median * 100) / 100 : null,
+          chainlink_price:   e.chainlink_price != null ? Math.round(e.chainlink_price * 100) / 100 : null,
+          chainlink_age_min: ageMs != null ? Math.round(ageMs / 60000) : null,
+        });
+      }
     }
 
     prevPollRows = rows;
@@ -134,6 +151,12 @@ async function main() {
   const outPath = join(__dirname, '..', 'data-out', 'backtest-alerts.md');
   writeFileSync(outPath, lines.join('\n') + '\n', 'utf8');
   console.log(`\nSaved to ${outPath}`);
+
+  if (writeJson) {
+    const jsonPath = join(__dirname, '..', 'dashboard', 'backtest-alerts.json');
+    writeFileSync(jsonPath, JSON.stringify(jsonEvents, null, 2) + '\n', 'utf8');
+    console.log(`Saved JSON to ${jsonPath} (${jsonEvents.length} events)`);
+  }
 }
 
 main().catch(err => { console.error('Fatal:', err.message); process.exit(1); });

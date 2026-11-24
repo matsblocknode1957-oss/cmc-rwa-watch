@@ -15,7 +15,7 @@
   --radius:    8px;
 }
 
-html { font-size: 16px; }
+html { font-size: 16px; overflow-x: hidden; }
 
 body {
   background: var(--bg);
@@ -23,6 +23,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   line-height: 1.5;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 a { color: var(--blue); text-decoration: none; }
@@ -91,7 +92,7 @@ h2 {
   .cards-section { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 480px) {
-  .cards-section { grid-template-columns: 1fr; }
+  .cards-section { grid-template-columns: repeat(2, 1fr); }
 }
 
 .card {
@@ -102,6 +103,7 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .card-header {
@@ -126,9 +128,11 @@ h2 {
   padding: 2px 7px;
   border-radius: 4px;
 }
-.badge-open  { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
-.badge-closed{ background: rgba(139,148,158,0.15); color: var(--muted); border: 1px solid var(--border); }
-.badge-alert { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+.badge-open     { background: rgba(34,197,94,0.15);  color: var(--green);  border: 1px solid rgba(34,197,94,0.3); }
+.badge-closed   { background: rgba(139,148,158,0.15);color: var(--muted);  border: 1px solid var(--border); }
+.badge-alert    { background: rgba(239,68,68,0.15);  color: var(--red);    border: 1px solid rgba(239,68,68,0.3); }
+.badge-live     { background: rgba(42,120,214,0.15); color: var(--blue);   border: 1px solid rgba(42,120,214,0.3); }
+.badge-backtest { background: rgba(139,148,158,0.1); color: var(--muted);  border: 1px solid var(--border); }
 
 .card-price {
   font-size: 1.5rem;
@@ -141,7 +145,20 @@ h2 {
   font-size: 0.8rem;
   color: var(--muted);
 }
-.card-cl span { color: var(--orange); font-weight: 500; }
+
+.card-cl-closed {
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0.75;
+  margin-top: 0.3rem;
+  line-height: 1.3;
+}
+
+.card-no-feed {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-style: italic;
+}
 
 .card-gap {
   font-size: 0.85rem;
@@ -193,8 +210,11 @@ h2 {
   border-radius: var(--radius);
   padding: 1rem;
   height: 320px;
+  width: 100%;
+  min-width: 0;
 }
-.chart-wrap--cs { height: 280px; }
+.chart-wrap--cs   { height: 280px; }
+.chart-wrap--zoom { height: 300px; }
 
 /* ── Case study ───────────────────────────────────────────────────────────── */
 .casestudy-text {
@@ -206,11 +226,27 @@ h2 {
 }
 .casestudy-text strong { color: var(--text); }
 
+.chart-subtitle {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
 /* ── Alerts table ─────────────────────────────────────────────────────────── */
+.alerts-note {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.75rem;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  width: 100%;
+  min-width: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
@@ -277,7 +313,7 @@ tbody td {
   padding: 1px 6px;
   border-radius: 3px;
 }
-.excl-reason.stale         { background: rgba(217,119,6,0.15); color: var(--amber); }
+.excl-reason.stale            { background: rgba(217,119,6,0.15);   color: var(--amber); }
 .excl-reason.hyperliquid_perp { background: rgba(139,148,158,0.15); color: var(--muted); }
 
 /* ── Footer ───────────────────────────────────────────────────────────────── */

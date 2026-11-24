@@ -13,8 +13,7 @@
 
   function fmtUTC(isoStr) {
     if (!isoStr) return '—';
-    const d = new Date(isoStr);
-    return d.toUTCString().replace(' GMT', ' UTC');
+    return new Date(isoStr).toUTCString().replace(' GMT', ' UTC');
   }
 
   function fmtShortUTC(isoStr) {
@@ -26,7 +25,7 @@
   }
 
   function gapInfo(gap) {
-    if (gap == null) return { text: '— (no feed)', cls: 'gap-ok' };
+    if (gap == null) return { text: '—', cls: 'gap-ok' };
     const sign = gap >= 0 ? '+' : '';
     const pct = `${sign}${Number(gap).toFixed(2)}%`;
     if (Math.abs(gap) >= 3) return { text: `${pct} HIGH`, cls: 'gap-high' };
@@ -34,12 +33,94 @@
     return { text: pct, cls: 'gap-ok' };
   }
 
-  function clAge(alertRow) {
-    if (!alertRow.chainlink_updated_at) return '—';
-    const ms = new Date(alertRow.created_at) - new Date(alertRow.chainlink_updated_at);
-    const mins = Math.round(ms / 60000);
-    return `${mins}m`;
+  function clAge(a) {
+    if (a.chainlink_age_min != null) return `${a.chainlink_age_min}m`;
+    if (!a.chainlink_updated_at) return '—';
+    const ms = new Date(a.created_at) - new Date(a.chainlink_updated_at);
+    return `${Math.round(ms / 60000)}m`;
   }
+
+  // ── Annotation plugin ──────────────────────────────────────────────────────
+  // Draws shaded regions and dashed vertical lines on a chart.
+  // Options: { points: [...], items: [{ type, fromISO/atISO, toISO, label }] }
+
+  const rwaAnnotationsPlugin = {
+    id: 'rwaAnnotations',
+    afterDraw(chart) {
+      const opts = chart.options.plugins?.rwaAnnotations;
+      if (!opts?.items?.length || !opts.points?.length) return;
+      const { ctx, chartArea } = chart;
+      const points = opts.points;
+      const meta = chart.getDatasetMeta(0);
+
+      function timeToPixel(isoStr) {
+        const target = new Date(isoStr).getTime();
+        let best = 0, bestDiff = Infinity;
+        for (let i = 0; i < points.length; i++) {
+          const diff = Math.abs(new Date(points[i].time).getTime() - target);
+          if (diff < bestDiff) { bestDiff = diff; best = i; }
+        }
+        return meta.data[best]?.x ?? chartArea.left;
+      }
+
+      ctx.save();
+      for (const item of opts.items) {
+        if (item.type === 'region') {
+          const px1 = timeToPixel(item.fromISO);
+          const px2 = timeToPixel(item.toISO);
+          const cx  = (px1 + px2) / 2;
+          // Clipped fill
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top);
+          ctx.clip();
+          ctx.fillStyle = 'rgba(235,104,52,0.11)';
+          ctx.fillRect(px1, chartArea.top, px2 - px1, chartArea.bottom - chartArea.top);
+          ctx.restore();
+          // Label (unclipped, anchored to top of chart area)
+          if (cx > chartArea.left && cx < chartArea.right) {
+            ctx.fillStyle = '#eb6834';
+            ctx.font = '600 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(item.label, Math.max(chartArea.left + 2, Math.min(chartArea.right - 2, cx)), chartArea.top + 4);
+          }
+        } else if (item.type === 'line') {
+          const px = timeToPixel(item.atISO);
+          if (px > chartArea.left && px < chartArea.right) {
+            // Clipped dashed line
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top);
+            ctx.clip();
+            ctx.strokeStyle = 'rgba(230,237,243,0.45)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 3]);
+            ctx.beginPath();
+            ctx.moveTo(px, chartArea.top);
+            ctx.lineTo(px, chartArea.bottom);
+            ctx.stroke();
+            ctx.restore();
+            // Label
+            ctx.fillStyle = '#c9d1d9';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(item.label, Math.max(chartArea.left + 2, Math.min(chartArea.right - 2, px)), chartArea.top + 18);
+          }
+        }
+      }
+      ctx.restore();
+    },
+  };
+
+  Chart.register(rwaAnnotationsPlugin);
+
+  // Annotations shared by both case study charts
+  const CS_ANNOTATIONS = [
+    { type: 'region', fromISO: '2026-11-23T13:46:00Z', toISO: '2026-11-23T14:02:00Z', label: 'News lands' },
+    { type: 'line',   atISO:  '2026-11-23T14:30:00Z',                                  label: 'Opening bell' },
+  ];
 
   // ── Charts ─────────────────────────────────────────────────────────────────
 
@@ -47,12 +128,11 @@
   Chart.defaults.borderColor = '#21262d';
   Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
-  function makeChart(ctx, points, title) {
-    const labels = points.map(p => fmtShortUTC(p.time));
+  function makeChart(ctx, points, { title, annotations } = {}) {
     return new Chart(ctx, {
       type: 'line',
       data: {
-        labels,
+        labels: points.map(p => fmtShortUTC(p.time)),
         datasets: [
           {
             label: 'Token median',
@@ -81,6 +161,7 @@
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
+          rwaAnnotations: annotations?.length ? { points, items: annotations } : { items: [] },
           title: title ? { display: true, text: title, color: '#8b949e', font: { size: 12 } } : { display: false },
           legend: {
             labels: { boxWidth: 12, padding: 16, font: { size: 12 } },
@@ -99,14 +180,14 @@
               label(item) {
                 const v = item.raw;
                 if (v == null) return null;
-                const prefix = item.datasetIndex === 0 ? 'Token:  ' : 'Chainlink:';
+                const prefix = item.datasetIndex === 0 ? 'Token:    ' : 'Chainlink:';
                 return `${prefix} $${Number(v).toFixed(2)}`;
               },
               afterBody(items) {
                 const tok = items.find(i => i.datasetIndex === 0)?.raw;
                 const cl  = items.find(i => i.datasetIndex === 1)?.raw;
                 if (tok != null && cl != null && cl > 0) {
-                  const g = ((tok - cl) / cl * 100);
+                  const g = (tok - cl) / cl * 100;
                   return [`Gap: ${g >= 0 ? '+' : ''}${g.toFixed(2)}%`];
                 }
                 return [];
@@ -117,14 +198,11 @@
         scales: {
           x: {
             ticks: { maxTicksLimit: 8, maxRotation: 0, font: { size: 11 } },
-            grid: { color: '#21262d' },
+            grid:  { color: '#21262d' },
           },
           y: {
-            grid: { color: '#21262d' },
-            ticks: {
-              font: { size: 11 },
-              callback: v => `$${Number(v).toFixed(2)}`,
-            },
+            grid:  { color: '#21262d' },
+            ticks: { font: { size: 11 }, callback: v => `$${Number(v).toFixed(2)}` },
           },
         },
       },
@@ -134,6 +212,7 @@
   // ── Render cards ───────────────────────────────────────────────────────────
 
   const ASSET_ORDER = ['SPY', 'NVDA', 'TSLA', 'GOLD', 'QQQ'];
+  const EQUITY_ASSETS = new Set(['SPY', 'NVDA', 'TSLA']);
 
   function renderCards(latest) {
     const section = document.getElementById('cards-section');
@@ -143,6 +222,18 @@
       if (!d) continue;
       const { text: gapText, cls: gapCls } = gapInfo(d.gap);
       const peerSpreadStr = d.peerSpread != null ? `Spread ${fmt(d.peerSpread, 2)}%` : '';
+
+      let clHtml;
+      if (asset === 'QQQ') {
+        clHtml = '<div class="card-no-feed">No Chainlink feed on Arbitrum. Peer spread only.</div>';
+      } else {
+        const ageStr = d.clAgeMin != null ? ` · ${d.clAgeMin}m ago` : '';
+        const closedHtml = !d.market_open && EQUITY_ASSETS.has(asset)
+          ? '<div class="card-cl-closed">Market closed: oracle updates slowly, gaps are expected to grow.</div>'
+          : '';
+        clHtml = `<div class="card-cl">CL $${fmt(d.clPrice)}${ageStr}${closedHtml}</div>`;
+      }
+
       const card = document.createElement('div');
       card.className = 'card';
       card.innerHTML = `
@@ -152,10 +243,7 @@
           ${d.alertOpen ? '<span class="badge badge-alert">Alert open</span>' : ''}
         </div>
         <div class="card-price">$${fmt(d.tokenMedian)}</div>
-        <div class="card-cl">
-          CL <span>$${fmt(d.clPrice)}</span>
-          ${d.clAgeMin != null ? `<span style="color:var(--muted)"> · ${d.clAgeMin}m ago</span>` : ''}
-        </div>
+        ${clHtml}
         <div class="card-gap ${gapCls}">Gap: ${gapText}</div>
         <div class="card-meta">
           <span>${d.tokensUsed} token${d.tokensUsed !== 1 ? 's' : ''}</span>
@@ -168,16 +256,17 @@
 
   // ── Render alert log ───────────────────────────────────────────────────────
 
-  function renderAlerts(alerts) {
+  function renderAlerts(allAlerts) {
     const tbody = document.getElementById('alerts-body');
-    if (!alerts.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No alerts yet.</td></tr>';
+    if (!allAlerts.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="loading-cell">No alerts yet.</td></tr>';
       return;
     }
-    tbody.innerHTML = alerts.map(a => {
+    tbody.innerHTML = allAlerts.map(a => {
       const gapStr = a.gap_pct != null
         ? `${Number(a.gap_pct) >= 0 ? '+' : ''}${Number(a.gap_pct).toFixed(2)}%`
         : '—';
+      const sourceLabel = a.source === 'live' ? 'Live' : 'Backtest';
       return `<tr>
         <td>${fmtShortUTC(a.created_at)}</td>
         <td><strong>${a.asset}</strong></td>
@@ -186,6 +275,7 @@
         <td>${a.market_state ?? '—'}</td>
         <td>${gapStr}</td>
         <td>${clAge(a)}</td>
+        <td><span class="badge badge-${a.source}">${sourceLabel}</span></td>
       </tr>`;
     }).join('');
   }
@@ -203,7 +293,7 @@
         <div><span class="excl-sym">${e.symbol ?? '?'}</span>
         <span class="excl-issuer"> · ${e.asset} · ${e.issuer ?? '—'}</span></div>
         <span class="excl-reason ${e.excluded_reason}">${
-          e.excluded_reason === 'stale' ? 'Stale — price frozen 2h+'
+          e.excluded_reason === 'stale'            ? 'Stale — price frozen 2h+'
           : e.excluded_reason === 'hyperliquid_perp' ? 'Hyperliquid perp (not spot)'
           : e.excluded_reason
         }</span>
@@ -263,16 +353,42 @@
 
     const defaultAsset = assets[0] ?? 'SPY';
     const initialPoints = data.series[defaultAsset] ?? [];
-    const mainCtx = document.getElementById('main-chart').getContext('2d');
-    mainChart = makeChart(mainCtx, initialPoints);
+    mainChart = makeChart(document.getElementById('main-chart').getContext('2d'), initialPoints);
     switchAsset(defaultAsset);
 
-    // Case study chart
-    const csCtx = document.getElementById('cs-chart').getContext('2d');
-    makeChart(csCtx, data.casestudy ?? [], 'NVDA · 20–23 Nov 2026');
+    // Case study — full weekend overview
+    const csPoints = data.casestudy ?? [];
+    makeChart(
+      document.getElementById('cs-chart').getContext('2d'),
+      csPoints,
+      { annotations: CS_ANNOTATIONS }
+    );
 
-    // Alerts
-    renderAlerts(data.alerts ?? []);
+    // Case study — Monday zoom 13:00–15:00 UTC
+    const zoomFrom = new Date('2026-11-23T13:00:00Z').getTime();
+    const zoomTo   = new Date('2026-11-23T15:00:00Z').getTime();
+    const zoomPoints = csPoints.filter(p => {
+      const t = new Date(p.time).getTime();
+      return t >= zoomFrom && t <= zoomTo;
+    });
+    makeChart(
+      document.getElementById('cs-zoom-chart').getContext('2d'),
+      zoomPoints,
+      { annotations: CS_ANNOTATIONS }
+    );
+
+    // Alert log — merge live + backtest
+    const liveAlerts = (data.alerts ?? []).map(a => ({ ...a, source: 'live' }));
+    let backtestAlerts = [];
+    try {
+      const br = await fetch('/backtest-alerts.json');
+      if (br.ok) {
+        backtestAlerts = (await br.json()).map(a => ({ ...a, created_at: a.time, source: 'backtest' }));
+      }
+    } catch {}
+    const allAlerts = [...liveAlerts, ...backtestAlerts]
+      .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+    renderAlerts(allAlerts);
 
     // Excluded
     renderExcluded(data.excluded ?? []);
