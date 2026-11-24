@@ -25,6 +25,13 @@
     return new Date(isoStr).toUTCString().replace(' GMT', ' UTC');
   }
 
+  function fmtHHMM(isoStr) {
+    if (!isoStr) return '—';
+    const d = new Date(isoStr);
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+  }
+
   function fmtShortUTC(isoStr) {
     if (!isoStr) return '—';
     const d = new Date(isoStr);
@@ -380,6 +387,54 @@
     // Header
     document.getElementById('last-updated').textContent =
       `Last updated: ${fmtUTC(data.meta.lastPoll)} · ${(data.meta.total ?? '?').toLocaleString()} total rows`;
+
+    const liveCountEl = document.getElementById('live-alert-count');
+    if (liveCountEl && data.live_open_count != null) {
+      liveCountEl.textContent = `Live alerts since 23 Nov: ${data.live_open_count}`;
+    }
+
+    // Live case study
+    const liveCsSection = document.getElementById('live-cs-section');
+    const livePoints = data.casestudy_live_nvda ?? [];
+    const liveCase = (data.live_cases ?? []).find(p => p.asset === 'NVDA');
+
+    if (!liveCase || !livePoints.length) {
+      if (liveCsSection) liveCsSection.hidden = true;
+    } else {
+      const openHHMM  = fmtHHMM(liveCase.opened_at);
+      const closeHHMM = fmtHHMM(liveCase.closed_at);
+      const rawGap    = liveCase.open_gap_pct;
+      const gapDir    = rawGap < 0
+        ? `${Math.abs(rawGap).toFixed(2)}% below`
+        : `${Number(rawGap).toFixed(2)}% above`;
+      const clAge     = liveCase.chainlink_age_at_open_min ?? '—';
+      const closeGap  = liveCase.close_gap_pct != null
+        ? `${liveCase.close_gap_pct >= 0 ? '+' : ''}${Number(liveCase.close_gap_pct).toFixed(2)}%`
+        : '—';
+
+      const textEl = document.getElementById('live-cs-text');
+      if (textEl) {
+        textEl.innerHTML =
+          `At <strong>${openHHMM} UTC</strong>, with the US market shut, tokenised Nvidia was trading ` +
+          `<strong>${gapDir}</strong> its Chainlink price, which had not updated for ` +
+          `<strong>${clAge} minutes</strong>. RWA Watch opened an alert. ` +
+          `The oracle's pre-market updates began closing the gap, and at the 14:30 opening bell ` +
+          `the oracle moved to meet the tokens. The alert closed itself at ` +
+          `<strong>${closeHHMM} UTC</strong> with the gap at <strong>${closeGap}</strong>. ` +
+          `Nobody touched it.`;
+      }
+
+      const CS_LIVE_ANNOTATIONS = [
+        { type: 'line', atISO: '2026-11-24T14:30:00Z', label: 'Opening bell' },
+        { type: 'line', atISO: liveCase.opened_at,     label: 'Alert open'   },
+        { type: 'line', atISO: liveCase.closed_at,     label: 'Alert close'  },
+      ];
+      makeChart(
+        document.getElementById('cs-live-chart').getContext('2d'),
+        livePoints,
+        { annotations: CS_LIVE_ANNOTATIONS }
+      );
+    }
 
     // Cards
     renderCards(data.latest);

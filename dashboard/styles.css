@@ -56,6 +56,13 @@ h1 {
   color: var(--muted);
 }
 
+.live-alert-count {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
 /* ── Error banner ─────────────────────────────────────────────────────────── */
 .error-banner {
   background: rgba(239,68,68,0.15);
@@ -128,11 +135,12 @@ h2 {
   padding: 2px 7px;
   border-radius: 4px;
 }
-.badge-open     { background: rgba(34,197,94,0.15);  color: var(--green);  border: 1px solid rgba(34,197,94,0.3); }
-.badge-closed   { background: rgba(139,148,158,0.15);color: var(--muted);  border: 1px solid var(--border); }
-.badge-alert    { background: rgba(239,68,68,0.15);  color: var(--red);    border: 1px solid rgba(239,68,68,0.3); }
-.badge-live     { background: rgba(42,120,214,0.15); color: var(--blue);   border: 1px solid rgba(42,120,214,0.3); }
-.badge-backtest { background: rgba(139,148,158,0.1); color: var(--muted);  border: 1px solid var(--border); }
+.badge-open       { background: rgba(34,197,94,0.15);  color: var(--green);  border: 1px solid rgba(34,197,94,0.3); }
+.badge-closed     { background: rgba(139,148,158,0.15);color: var(--muted);  border: 1px solid var(--border); }
+.badge-alert      { background: rgba(239,68,68,0.15);  color: var(--red);    border: 1px solid rgba(239,68,68,0.3); }
+.badge-live-alert { background: rgba(239,68,68,0.15);  color: var(--red);    border: 1px solid rgba(239,68,68,0.3); }
+.badge-live       { background: rgba(42,120,214,0.15); color: var(--blue);   border: 1px solid rgba(42,120,214,0.3); }
+.badge-backtest   { background: rgba(139,148,158,0.1); color: var(--muted);  border: 1px solid var(--border); }
 
 .card-price {
   font-size: 1.5rem;

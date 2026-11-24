@@ -54,20 +54,57 @@ export const handler = async () => {
   const base = `${SUPABASE_URL}/rest/v1`;
 
   try {
-    // Get latest timestamp first (all subsequent queries depend on it or run in parallel)
-    const tsR = await fetch(`${base}/rwa_quotes?select=collected_at&order=collected_at.desc&limit=1`, { headers: h });
-    if (!tsR.ok) throw new Error(`latest timestamp: HTTP ${tsR.status}`);
-    const tsData = await tsR.json();
-    if (!tsData.length) throw new Error('No rows found in rwa_quotes');
-    const latestTime = tsData[0].collected_at;
-
     const since72h = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
     const sCols = 'collected_at,asset,token_price_usd,price_adj_usd,excluded_reason,unit_mismatch,ref_price_usd,token_volume_24h';
     const lCols = 'asset,token_symbol,issuer,crypto_id,token_price_usd,price_adj_usd,excluded_reason,unit_mismatch,ref_price_usd,ref_updated_at,market_open,token_volume_24h';
 
-    // Parallel: alerts, per-asset 72h series, NVDA case study, GOLD case study, weekend vol
-    const [alertsData, ...assetRows] = await Promise.all([
+    // Stage 1: latestTime + alert log + all divergence alerts for live-case pairing
+    const [tsData, alertsRaw, divAlertsRaw] = await Promise.all([
+      fetch(`${base}/rwa_quotes?select=collected_at&order=collected_at.desc&limit=1`, { headers: h })
+        .then(r => { if (!r.ok) throw new Error(`latest timestamp: HTTP ${r.status}`); return r.json(); }),
       fetch(`${base}/rwa_alerts?select=*&order=created_at.desc&limit=50`, { headers: h }).then(r => r.json()),
+      fetchAll(`${base}/rwa_alerts?select=*&alert_type=eq.divergence&order=created_at.asc`, h),
+    ]);
+    if (!tsData.length) throw new Error('No rows found in rwa_quotes');
+    const latestTime = tsData[0].collected_at;
+    const alerts = Array.isArray(alertsRaw) ? alertsRaw : [];
+    const divAlerts = Array.isArray(divAlertsRaw) ? divAlertsRaw : [];
+
+    // Pair open→close events to build live_cases (only fully closed pairs)
+    const livePairs = [];
+    const openByAsset = {};
+    for (const a of divAlerts) {
+      if (a.event === 'open') {
+        openByAsset[a.asset] = a;
+      } else if (a.event === 'close' && openByAsset[a.asset]) {
+        const op = openByAsset[a.asset];
+        livePairs.push({
+          asset: op.asset,
+          opened_at: op.created_at,
+          open_gap_pct: op.gap_pct != null ? Number(op.gap_pct) : null,
+          open_market_state: op.market_state,
+          chainlink_age_at_open_min: op.chainlink_updated_at
+            ? Math.round((new Date(op.created_at) - new Date(op.chainlink_updated_at)) / 60000) : null,
+          closed_at: a.created_at,
+          close_gap_pct: a.gap_pct != null ? Number(a.gap_pct) : null,
+          chainlink_age_at_close_min: a.chainlink_updated_at
+            ? Math.round((new Date(a.created_at) - new Date(a.chainlink_updated_at)) / 60000) : null,
+          duration_min: Math.round((new Date(a.created_at) - new Date(op.created_at)) / 60000),
+        });
+        delete openByAsset[a.asset];
+      }
+    }
+    const liveOpenCount = divAlerts.filter(a => a.event === 'open').length;
+
+    // Live NVDA series window: 1 h before first NVDA open → 1 h after its close
+    const nvdaPair = livePairs.find(p => p.asset === 'NVDA');
+    const liveNvdaFrom = nvdaPair
+      ? new Date(new Date(nvdaPair.opened_at).getTime() - 3600000).toISOString() : null;
+    const liveNvdaTo = nvdaPair
+      ? new Date(new Date(nvdaPair.closed_at).getTime() + 3600000).toISOString() : null;
+
+    // Stage 2: 72h series + case studies + live NVDA series
+    const parallelResults = await Promise.all([
       ...ASSETS.map(a =>
         fetchAll(`${base}/rwa_quotes?select=${sCols}&asset=eq.${a}&collected_at=gte.${enc(since72h)}&order=collected_at.asc`, h)
       ),
@@ -89,12 +126,15 @@ export const handler = async () => {
         `&collected_at=lte.${enc('2026-11-22T16:00:00.000Z')}&order=collected_at.asc`,
         h
       ),
+      liveNvdaFrom
+        ? fetchAll(`${base}/rwa_quotes?select=${sCols}&asset=eq.NVDA&collected_at=gte.${enc(liveNvdaFrom)}&collected_at=lte.${enc(liveNvdaTo)}&order=collected_at.asc`, h)
+        : Promise.resolve([]),
     ]);
-
-    const seriesByAsset = assetRows.slice(0, ASSETS.length);
-    const csRows     = assetRows[ASSETS.length];
-    const csGoldRows = assetRows[ASSETS.length + 1];
-    const wvRows     = assetRows[ASSETS.length + 2];
+    const seriesByAsset = parallelResults.slice(0, ASSETS.length);
+    const csRows     = parallelResults[ASSETS.length];
+    const csGoldRows = parallelResults[ASSETS.length + 1];
+    const wvRows     = parallelResults[ASSETS.length + 2];
+    const csLiveRows = parallelResults[ASSETS.length + 3];
 
     // Latest rows + meta (can run in parallel now)
     const [latestRows, firstPollR, countR] = await Promise.all([
@@ -108,8 +148,6 @@ export const handler = async () => {
     const cr = countR.headers.get('content-range') ?? '';
     const total = cr.includes('/') ? parseInt(cr.split('/')[1], 10) : null;
     const firstPoll = firstPollR[0]?.collected_at ?? null;
-
-    const alerts = Array.isArray(alertsData) ? alertsData : [];
 
     // Build latest per asset
     const latest = {};
@@ -192,6 +230,9 @@ export const handler = async () => {
         casestudy: buildSeriesFromRows(csRows),
         casestudy_gold: buildSeriesFromRows(csGoldRows),
         weekendVol,
+        live_cases: livePairs,
+        casestudy_live_nvda: buildSeriesFromRows(csLiveRows),
+        live_open_count: liveOpenCount,
         meta: { total, firstPoll, lastPoll: latestTime },
       }),
     };
