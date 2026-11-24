@@ -1,0 +1,70 @@
+RWA Watch — oracle health check for tokenised real-world assets
+==============================================================
+
+What this service does
+----------------------
+RWA Watch tracks five tokenised real-world assets (SPY, NVDA, TSLA, GOLD, QQQ) every ~30 minutes.
+It compares the volume-weighted median price of on-chain tokens against the Chainlink price feed on
+Arbitrum One, and raises alerts when the gap exceeds per-asset thresholds.
+
+The /api/check endpoint
+-----------------------
+Base URL: https://rwa-watch.netlify.app/api/check
+
+  GET /api/check             — returns an array of five asset objects
+  GET /api/check?asset=NVDA  — returns a single object for NVDA
+  GET /api/check?asset=GOLD  — etc. (SPY, NVDA, TSLA, GOLD, QQQ)
+
+Unknown asset → HTTP 400 with the list of valid assets.
+Headers: Access-Control-Allow-Origin: *, Cache-Control: public, max-age=60
+
+How to read the verdict
+-----------------------
+The top-level "verdict" field is the signal to act on.
+
+  OK            — gap within normal bounds; oracle price can be trusted.
+  CAUTION       — gap above half the alert threshold; treat the oracle with care.
+  DO_NOT_TRUST  — gap at or above the alert threshold, or an active alert is open.
+  NO_ORACLE     — no Chainlink feed for this asset on Arbitrum (always QQQ).
+  UNKNOWN       — our data is more than 35 minutes old; we cannot give a verdict.
+
+The "reason" field is a plain-English sentence explaining the verdict.
+
+Thresholds (% gap that triggers DO_NOT_TRUST)
+---------------------------------------------
+  SPY / NVDA / TSLA : 2.0% market open,  3.0% market closed
+  GOLD              : 1.5% always
+  QQQ               : no oracle (NO_ORACLE)
+
+CAUTION fires at half the trigger threshold. Market state is in market.state.
+
+Recommended agent workflow
+--------------------------
+1. Call GET /api/check?asset=<ASSET>
+2. Read verdict. If OK → proceed. If CAUTION → note it. If DO_NOT_TRUST or UNKNOWN → halt
+   any price-sensitive action and surface the reason to the user.
+3. The gap_pct field gives the raw divergence (token median vs Chainlink, positive = tokens above).
+4. alert_open: true means a divergence alert is currently open in the database.
+5. data_as_of is the ISO timestamp of our latest poll; oracle.updated_at is the last Chainlink update.
+
+Example call
+------------
+  curl https://rwa-watch.netlify.app/api/check?asset=NVDA
+
+Example response (truncated)
+-----------------------------
+  {
+    "asset": "NVDA",
+    "verdict": "OK",
+    "reason": "Gap of -0.21% is within normal bounds (market closed, threshold 3%).",
+    "market": { "state": "closed" },
+    "oracle": { "source": "Chainlink", "network": "Arbitrum One",
+                "feed_address": "0x4881A4418b5F2460B21d6F08CD5aA0678a7f262F",
+                "price": 143.52, "age_minutes": 12 },
+    "tokens": { "median_price": 143.22, "tokens_used": 4, "volume_24h_usd": 2341800 },
+    "gap_pct": -0.2091,
+    "alert_open": false,
+    "data_as_of": "2026-11-24T12:47:38.142+00:00"
+  }
+
+OpenAPI spec: https://rwa-watch.netlify.app/openapi.json

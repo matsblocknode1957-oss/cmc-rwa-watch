@@ -1,0 +1,170 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RWA Watch — Oracle Check API",
+    "version": "1.0.0",
+    "description": "Per-asset oracle health check: compares tokenised RWA prices against Chainlink on Arbitrum One and returns a trust verdict."
+  },
+  "servers": [
+    { "url": "https://rwa-watch.netlify.app/api", "description": "Production" }
+  ],
+  "paths": {
+    "/check": {
+      "get": {
+        "summary": "Oracle health check for one or all assets",
+        "description": "Returns a verdict (OK / CAUTION / DO_NOT_TRUST / NO_ORACLE / UNKNOWN) for the requested asset, or for all five assets if no asset is specified.",
+        "operationId": "checkOracle",
+        "parameters": [
+          {
+            "name": "asset",
+            "in": "query",
+            "required": false,
+            "description": "Ticker symbol. One of: SPY, NVDA, TSLA, GOLD, QQQ. Omit for all five.",
+            "schema": { "type": "string", "enum": ["SPY", "NVDA", "TSLA", "GOLD", "QQQ"] },
+            "example": "NVDA"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful oracle check",
+            "headers": {
+              "Access-Control-Allow-Origin": { "schema": { "type": "string" }, "description": "Always *" },
+              "Cache-Control": { "schema": { "type": "string" }, "description": "public, max-age=60" }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/AssetCheck" },
+                    {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/AssetCheck" },
+                      "description": "Returned when no asset query param is supplied"
+                    }
+                  ]
+                },
+                "examples": {
+                  "nvda_ok": {
+                    "summary": "NVDA — OK, market closed",
+                    "value": {
+                      "asset": "NVDA",
+                      "checked_at": "2026-11-24T12:48:00.000Z",
+                      "verdict": "OK",
+                      "reason": "Gap of -0.21% is within normal bounds (market closed, threshold 3%).",
+                      "market": { "state": "closed" },
+                      "oracle": {
+                        "source": "Chainlink",
+                        "network": "Arbitrum One",
+                        "feed_address": "0x4881A4418b5F2460B21d6F08CD5aA0678a7f262F",
+                        "price": 143.52,
+                        "updated_at": "2026-11-24T12:36:00.000Z",
+                        "age_minutes": 12
+                      },
+                      "tokens": {
+                        "median_price": 143.22,
+                        "tokens_used": 4,
+                        "volume_24h_usd": 2341800,
+                        "excluded_count": 2
+                      },
+                      "gap_pct": -0.2091,
+                      "alert_open": false,
+                      "thresholds_used": {
+                        "marketOpen": { "trig": 2.0, "shut": 1.0 },
+                        "marketClosed": { "trig": 3.0, "shut": 1.5 }
+                      },
+                      "data_as_of": "2026-11-24T12:47:38.142+00:00"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string", "example": "Unknown asset \"XYZ\". Valid assets: SPY, NVDA, TSLA, GOLD, QQQ." }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (Supabase unreachable or misconfigured)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "error": { "type": "string" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Verdict": {
+        "type": "string",
+        "enum": ["OK", "CAUTION", "DO_NOT_TRUST", "NO_ORACLE", "UNKNOWN"],
+        "description": "OK = oracle trustworthy; CAUTION = elevated gap, use with care; DO_NOT_TRUST = gap at/above threshold or active alert; NO_ORACLE = no Chainlink feed for this asset; UNKNOWN = data too stale to decide."
+      },
+      "AssetCheck": {
+        "type": "object",
+        "required": ["asset", "checked_at", "verdict", "reason", "market", "tokens", "gap_pct", "alert_open", "data_as_of"],
+        "properties": {
+          "asset":       { "type": "string", "example": "NVDA" },
+          "checked_at":  { "type": "string", "format": "date-time" },
+          "verdict":     { "$ref": "#/components/schemas/Verdict" },
+          "reason":      { "type": "string", "description": "Plain-English explanation of the verdict." },
+          "market": {
+            "type": "object",
+            "properties": {
+              "state": { "type": "string", "enum": ["open", "closed"] }
+            }
+          },
+          "oracle": {
+            "type": ["object", "null"],
+            "description": "null for assets with no Chainlink feed (QQQ).",
+            "properties": {
+              "source":       { "type": "string", "example": "Chainlink" },
+              "network":      { "type": "string", "example": "Arbitrum One" },
+              "feed_address": { "type": ["string", "null"], "example": "0x4881A4418b5F2460B21d6F08CD5aA0678a7f262F" },
+              "price":        { "type": ["number", "null"] },
+              "updated_at":   { "type": ["string", "null"], "format": "date-time" },
+              "age_minutes":  { "type": ["integer", "null"] }
+            }
+          },
+          "tokens": {
+            "type": "object",
+            "properties": {
+              "median_price":    { "type": ["number", "null"], "description": "Volume-weighted median of valid token prices (USD)." },
+              "tokens_used":     { "type": "integer" },
+              "volume_24h_usd":  { "type": ["number", "null"], "description": "Sum of 24h volume for included tokens." },
+              "excluded_count":  { "type": "integer", "description": "Tokens excluded from the median (stale, no volume, unit mismatch)." }
+            }
+          },
+          "gap_pct": {
+            "type": ["number", "null"],
+            "description": "(token_median - oracle_price) / oracle_price × 100. Positive = tokens above oracle."
+          },
+          "alert_open": { "type": "boolean", "description": "True if a divergence alert is currently open in the database." },
+          "thresholds_used": {
+            "type": ["object", "null"],
+            "description": "The trigger/close thresholds applied for this asset. null for QQQ.",
+            "properties": {
+              "marketOpen":   { "type": "object", "properties": { "trig": { "type": "number" }, "shut": { "type": "number" } } },
+              "marketClosed": { "type": "object", "properties": { "trig": { "type": "number" }, "shut": { "type": "number" } } }
+            }
+          },
+          "data_as_of": { "type": "string", "format": "date-time", "description": "Timestamp of our latest collector poll." }
+        }
+      }
+    }
+  }
+}

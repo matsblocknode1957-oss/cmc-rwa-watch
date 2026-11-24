@@ -2,16 +2,9 @@
 // Used by collector.js (live) and scripts/backtest-alerts.js (replay).
 
 import { computeTokenMedian } from './lib/median.js';
+import { THRESHOLDS, DEFAULT_THRESHOLDS } from './lib/thresholds.js';
 
 export const TROY_OZ_PER_GRAM = 31.1035;
-
-const THRESHOLDS = {
-  SPY:  { marketOpen: { trig: 2.0, shut: 1.0  }, marketClosed: { trig: 3.0, shut: 1.5  } },
-  NVDA: { marketOpen: { trig: 2.0, shut: 1.0  }, marketClosed: { trig: 3.0, shut: 1.5  } },
-  TSLA: { marketOpen: { trig: 2.0, shut: 1.0  }, marketClosed: { trig: 3.0, shut: 1.5  } },
-  GOLD: { marketOpen: { trig: 1.5, shut: 0.75 }, marketClosed: { trig: 1.5, shut: 0.75 } },
-};
-const DEFAULT_THRESHOLDS = { marketOpen: { trig: 2.0, shut: 1.0 }, marketClosed: { trig: 3.0, shut: 1.5 } };
 
 // Compute gap from a set of rows for one asset.
 // Requires at least 3 valid tokens (excluded_reason null, !unit_mismatch).

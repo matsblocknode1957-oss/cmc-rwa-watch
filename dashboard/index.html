@@ -48,6 +48,45 @@
       </div>
     </section>
 
+    <section class="section oracle-check-section">
+      <h2>Check the oracle before you trust it</h2>
+      <p class="oracle-check-desc">
+        Call <code>/api/check</code> to get a machine-readable trust verdict for any asset.
+        Use it in bots, agents, or scripts before acting on a Chainlink price.
+      </p>
+      <div class="oracle-check-url">
+        <code id="oracle-check-url-text">https://rwa-watch.netlify.app/api/check?asset=NVDA</code>
+        <button class="copy-btn" id="oracle-copy-btn" aria-label="Copy URL">Copy</button>
+      </div>
+      <pre class="oracle-check-curl">curl https://rwa-watch.netlify.app/api/check?asset=NVDA</pre>
+      <details class="oracle-check-example">
+        <summary>Example response</summary>
+        <pre>{
+  "asset": "NVDA",
+  "verdict": "OK",
+  "reason": "Gap of -0.21% is within normal bounds (market closed, threshold 3%).",
+  "market": { "state": "closed" },
+  "oracle": {
+    "source": "Chainlink",
+    "network": "Arbitrum One",
+    "feed_address": "0x4881A4418b5F2460B21d6F08CD5aA0678a7f262F",
+    "price": 143.52,
+    "updated_at": "2026-11-24T12:36:00.000Z",
+    "age_minutes": 12
+  },
+  "tokens": { "median_price": 143.22, "tokens_used": 4, "volume_24h_usd": 2341800, "excluded_count": 2 },
+  "gap_pct": -0.2091,
+  "alert_open": false,
+  "data_as_of": "2026-11-24T12:47:38.142+00:00"
+}</pre>
+      </details>
+      <p class="oracle-check-links">
+        <a href="/openapi.json" target="_blank" rel="noopener">OpenAPI 3.1 spec</a>
+        &middot;
+        <a href="/llms.txt" target="_blank" rel="noopener">llms.txt</a>
+      </p>
+    </section>
+
     <section class="section">
       <h2>Alert log</h2>
       <p class="alerts-note">Backtest = the same alert rules replayed over data collected before alerts went live on 23 Nov.</p>
@@ -91,5 +130,14 @@
   </footer>
 
   <script src="app.js"></script>
+  <script>
+    document.getElementById('oracle-copy-btn').addEventListener('click', function () {
+      const text = document.getElementById('oracle-check-url-text').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        this.textContent = 'Copied!';
+        setTimeout(() => { this.textContent = 'Copy'; }, 1800);
+      });
+    });
+  </script>
 </body>
 </html>

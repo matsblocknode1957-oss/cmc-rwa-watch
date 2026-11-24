@@ -210,10 +210,28 @@
     });
   }
 
+  // ── Verdict badge ──────────────────────────────────────────────────────────
+
+  function verdictBadge(verdict) {
+    if (!verdict) return '';
+    const map = {
+      OK:           { cls: 'verdict-ok',          label: 'OK' },
+      CAUTION:      { cls: 'verdict-caution',      label: 'CAUTION' },
+      DO_NOT_TRUST: { cls: 'verdict-do-not-trust', label: 'DO NOT TRUST' },
+      NO_ORACLE:    { cls: 'verdict-no-oracle',    label: 'NO ORACLE' },
+      UNKNOWN:      { cls: 'verdict-unknown',      label: 'UNKNOWN' },
+    };
+    const v = map[verdict] ?? { cls: 'verdict-unknown', label: verdict };
+    return `<span class="verdict-badge ${v.cls}" title="Oracle verdict">${v.label}</span>`;
+  }
+
   // ── Render cards ───────────────────────────────────────────────────────────
 
   const ASSET_ORDER = ['SPY', 'NVDA', 'TSLA', 'GOLD', 'QQQ'];
   const EQUITY_ASSETS = new Set(['SPY', 'NVDA', 'TSLA']);
+
+  // verdicts populated asynchronously after cards render
+  const cardVerdicts = {};
 
   function renderCards(latest) {
     const section = document.getElementById('cards-section');
@@ -237,6 +255,7 @@
 
       const card = document.createElement('div');
       card.className = 'card';
+      card.id = `card-${asset}`;
       card.innerHTML = `
         <div class="card-header">
           <span class="card-asset">${asset}</span>
@@ -250,8 +269,27 @@
           <span>${d.tokensUsed} token${d.tokensUsed !== 1 ? 's' : ''}</span>
           ${peerSpreadStr ? `<span>${peerSpreadStr}</span>` : ''}
         </div>
+        <div class="card-verdict" id="verdict-${asset}"><span class="verdict-loading">Checking oracle…</span></div>
       `;
       section.appendChild(card);
+    }
+  }
+
+  async function loadVerdicts() {
+    try {
+      const r = await fetch('/api/check');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const results = await r.json();
+      if (!Array.isArray(results)) return;
+      for (const item of results) {
+        const el = document.getElementById(`verdict-${item.asset}`);
+        if (el) el.innerHTML = verdictBadge(item.verdict);
+      }
+    } catch {
+      for (const asset of ASSET_ORDER) {
+        const el = document.getElementById(`verdict-${asset}`);
+        if (el) el.innerHTML = '';
+      }
     }
   }
 
@@ -327,6 +365,7 @@
 
     // Cards
     renderCards(data.latest);
+    loadVerdicts();
 
     // Asset picker + main chart
     const picker = document.getElementById('asset-picker');

@@ -316,6 +316,106 @@ tbody td {
 .excl-reason.stale            { background: rgba(217,119,6,0.15);   color: var(--amber); }
 .excl-reason.hyperliquid_perp { background: rgba(139,148,158,0.15); color: var(--muted); }
 
+/* ── Verdict badge ────────────────────────────────────────────────────────── */
+.card-verdict {
+  margin-top: 0.25rem;
+  min-height: 1.4rem;
+}
+.verdict-loading {
+  font-size: 0.65rem;
+  color: var(--muted);
+  opacity: 0.7;
+}
+.verdict-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.verdict-ok           { background: rgba(34,197,94,0.15);   color: var(--green);  border: 1px solid rgba(34,197,94,0.3); }
+.verdict-caution      { background: rgba(217,119,6,0.15);   color: var(--amber);  border: 1px solid rgba(217,119,6,0.3); }
+.verdict-do-not-trust { background: rgba(239,68,68,0.15);   color: var(--red);    border: 1px solid rgba(239,68,68,0.3); }
+.verdict-no-oracle    { background: rgba(139,148,158,0.1);  color: var(--muted);  border: 1px solid var(--border); }
+.verdict-unknown      { background: rgba(139,148,158,0.1);  color: var(--muted);  border: 1px solid var(--border); }
+
+/* ── Oracle check section ─────────────────────────────────────────────────── */
+.oracle-check-desc {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+  max-width: 700px;
+}
+.oracle-check-url {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 1rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+.oracle-check-url code {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--blue);
+  word-break: break-all;
+}
+.copy-btn {
+  background: rgba(42,120,214,0.15);
+  border: 1px solid rgba(42,120,214,0.3);
+  color: var(--blue);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.copy-btn:hover { background: rgba(42,120,214,0.25); }
+
+.oracle-check-curl {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+}
+.oracle-check-example {
+  margin-bottom: 0.75rem;
+}
+.oracle-check-example summary {
+  font-size: 0.8rem;
+  color: var(--blue);
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0.4rem;
+}
+.oracle-check-example pre {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+.oracle-check-links {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 /* ── Footer ───────────────────────────────────────────────────────────────── */
 footer {
   border-top: 1px solid var(--border);
