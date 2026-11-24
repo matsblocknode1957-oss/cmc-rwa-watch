@@ -77,8 +77,8 @@
           ctx.fillStyle = 'rgba(235,104,52,0.11)';
           ctx.fillRect(px1, chartArea.top, px2 - px1, chartArea.bottom - chartArea.top);
           ctx.restore();
-          // Label (unclipped, anchored to top of chart area)
-          if (cx > chartArea.left && cx < chartArea.right) {
+          // Label (unclipped, anchored to top of chart area) — skipped when label is null
+          if (item.label && cx > chartArea.left && cx < chartArea.right) {
             ctx.fillStyle = '#eb6834';
             ctx.font = '600 10px sans-serif';
             ctx.textAlign = 'center';
@@ -101,7 +101,8 @@
             ctx.lineTo(px, chartArea.bottom);
             ctx.stroke();
             ctx.restore();
-            // Label
+            // Label — skipped when label is null
+            if (!item.label) continue;
             ctx.fillStyle = '#c9d1d9';
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'center';
@@ -356,12 +357,12 @@
     mainChart = makeChart(document.getElementById('main-chart').getContext('2d'), initialPoints);
     switchAsset(defaultAsset);
 
-    // Case study — full weekend overview
+    // Case study — full weekend overview (band + line, no text labels — they'd overlap at the right edge)
     const csPoints = data.casestudy ?? [];
     makeChart(
       document.getElementById('cs-chart').getContext('2d'),
       csPoints,
-      { annotations: CS_ANNOTATIONS }
+      { annotations: CS_ANNOTATIONS.map(a => ({ ...a, label: null })) }
     );
 
     // Case study — Monday zoom 13:00–15:00 UTC
