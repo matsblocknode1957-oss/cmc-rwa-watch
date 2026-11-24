@@ -65,7 +65,7 @@ export const handler = async () => {
     const sCols = 'collected_at,asset,token_price_usd,price_adj_usd,excluded_reason,unit_mismatch,ref_price_usd,token_volume_24h';
     const lCols = 'asset,token_symbol,issuer,crypto_id,token_price_usd,price_adj_usd,excluded_reason,unit_mismatch,ref_price_usd,ref_updated_at,market_open,token_volume_24h';
 
-    // Parallel: alerts, per-asset 72h series, case study
+    // Parallel: alerts, per-asset 72h series, NVDA case study, GOLD case study, weekend vol
     const [alertsData, ...assetRows] = await Promise.all([
       fetch(`${base}/rwa_alerts?select=*&order=created_at.desc&limit=50`, { headers: h }).then(r => r.json()),
       ...ASSETS.map(a =>
@@ -77,10 +77,24 @@ export const handler = async () => {
         `&collected_at=lte.${enc('2026-11-23T15:30:00.000Z')}&order=collected_at.asc`,
         h
       ),
+      fetchAll(
+        `${base}/rwa_quotes?select=${sCols}&asset=eq.GOLD` +
+        `&collected_at=gte.${enc('2026-11-20T20:00:00.000Z')}` +
+        `&collected_at=lte.${enc('2026-11-23T02:00:00.000Z')}&order=collected_at.asc`,
+        h
+      ),
+      fetchAll(
+        `${base}/rwa_quotes?select=${sCols}` +
+        `&collected_at=gte.${enc('2026-11-22T12:00:00.000Z')}` +
+        `&collected_at=lte.${enc('2026-11-22T16:00:00.000Z')}&order=collected_at.asc`,
+        h
+      ),
     ]);
 
     const seriesByAsset = assetRows.slice(0, ASSETS.length);
-    const csRows = assetRows[ASSETS.length];
+    const csRows     = assetRows[ASSETS.length];
+    const csGoldRows = assetRows[ASSETS.length + 1];
+    const wvRows     = assetRows[ASSETS.length + 2];
 
     // Latest rows + meta (can run in parallel now)
     const [latestRows, firstPollR, countR] = await Promise.all([
@@ -113,6 +127,8 @@ export const handler = async () => {
       const gap = asset !== 'QQQ' && clPrice && tokenMedian != null
         ? (tokenMedian - clPrice) / clPrice * 100
         : null;
+      const inclRows = rows.filter(r => r.excluded_reason == null && !r.unit_mismatch);
+      const volume24h = inclRows.reduce((s, r) => s + Number(r.token_volume_24h ?? 0), 0) || null;
       const latestAlert = alerts.find(a => a.asset === asset && a.alert_type === 'divergence');
       latest[asset] = {
         market_open: rows[0].market_open,
@@ -123,6 +139,7 @@ export const handler = async () => {
         gap,
         tokensUsed,
         peerSpread,
+        volume24h,
         alertOpen: latestAlert ? latestAlert.event === 'open' : false,
       };
     }
@@ -149,6 +166,21 @@ export const handler = async () => {
       }
     }
 
+    // Weekend volume at poll nearest Sun 2026-11-22 14:00 UTC
+    const wvTarget = new Date('2026-11-22T14:00:00Z').getTime();
+    const wvTimes = [...new Set(wvRows.map(r => r.collected_at))].sort();
+    const wvNearest = wvTimes.length
+      ? wvTimes.reduce((best, t) =>
+          Math.abs(new Date(t) - wvTarget) < Math.abs(new Date(best) - wvTarget) ? t : best
+        )
+      : null;
+    const weekendVol = {};
+    for (const asset of ASSETS) {
+      const ar = wvRows.filter(r => r.collected_at === wvNearest && r.asset === asset);
+      const incl = ar.filter(r => r.excluded_reason == null && !r.unit_mismatch);
+      weekendVol[asset] = incl.reduce((s, r) => s + Number(r.token_volume_24h ?? 0), 0) || null;
+    }
+
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
@@ -158,6 +190,8 @@ export const handler = async () => {
         alerts,
         excluded: [...excludedMap.values()],
         casestudy: buildSeriesFromRows(csRows),
+        casestudy_gold: buildSeriesFromRows(csGoldRows),
+        weekendVol,
         meta: { total, firstPoll, lastPoll: latestTime },
       }),
     };

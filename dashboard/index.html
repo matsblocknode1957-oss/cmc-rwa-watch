@@ -29,12 +29,14 @@
       </div>
     </section>
 
+    <p class="weekend-vol-stat" id="weekend-vol-stat">Loading…</p>
+
     <section class="section casestudy-section">
       <h2>23 Nov: tokenised Nvidia moved first, the oracle caught up at the bell</h2>
       <p class="casestudy-text">
-        Tokens kept trading all weekend while the oracle barely moved. By Mon 11:45 UTC tokens were
-        <strong>8.7% above the oracle</strong>. Huang reinstatement news landed 13:46–14:02 UTC.
-        At 14:15, tokens <strong>$161.21</strong> vs oracle <strong>$143.52</strong> (+12.3%).
+        Tokens kept trading all weekend while the oracle barely moved. By Mon 09:17 UTC tokens were
+        <strong>9.45% above the oracle</strong>. Huang reinstatement news landed 13:46–14:02 UTC.
+        At 14:16, tokens <strong>$160.66</strong> vs oracle <strong>$143.52</strong> (+11.94%).
         Oracle caught up at <strong>14:30:37</strong>.
         Our backtest flagged the divergence on <strong>Sat 22:17 UTC</strong>.
       </p>
@@ -45,6 +47,33 @@
       <p class="chart-subtitle" style="margin-top:1.5rem">Monday 23 Nov, 13:00–15:00 UTC: the news, then the bell</p>
       <div class="chart-wrap chart-wrap--zoom">
         <canvas id="cs-zoom-chart"></canvas>
+      </div>
+    </section>
+
+    <section class="section casestudy-section">
+      <h2>21–22 Nov: gold tokens drifted down, the oracle stayed put</h2>
+      <p class="casestudy-text">
+        The gold market closes Friday 22:00 UTC and reopens Sunday 23:00 UTC.
+        Over this weekend, the oracle held at <strong>$3,575</strong> while tokens drifted between
+        <strong>$3,523</strong> and <strong>$3,553</strong>.
+        The largest gap was <strong>−1.46%</strong> at <strong>Sat 22 Nov 05:48 UTC</strong>
+        (tokens $3,523 vs oracle $3,575).
+        When gold reopened at 23:00 UTC the oracle moved quickly: by 23:02 it had jumped to
+        <strong>$3,581</strong>, narrowing the gap to <strong>−0.90%</strong>.
+        In open hours the typical token discount is about <strong>−0.27%</strong>,
+        so almost all of the weekend gap was genuine drift, not normal basis.
+      </p>
+      <p class="casestudy-text" style="margin-top:0.5rem">
+        This is the risky direction for lending: all weekend the oracle valued gold collateral
+        <strong>above</strong> what the market would pay.
+      </p>
+      <p class="chart-subtitle">Weekend overview · 20–23 Nov 2026</p>
+      <div class="chart-wrap chart-wrap--cs">
+        <canvas id="cs-gold-chart"></canvas>
+      </div>
+      <p class="chart-subtitle" style="margin-top:1.5rem">Around the reopen · Sun 22 Nov 20:00 – Mon 23 Nov 02:00 UTC</p>
+      <div class="chart-wrap chart-wrap--zoom">
+        <canvas id="cs-gold-zoom-chart"></canvas>
       </div>
     </section>
 

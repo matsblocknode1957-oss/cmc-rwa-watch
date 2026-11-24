@@ -11,6 +11,15 @@
     });
   }
 
+  function fmtVol(n) {
+    if (n == null || !Number.isFinite(Number(n)) || Number(n) === 0) return null;
+    const v = Number(n);
+    if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+    if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+    if (v >= 1e3) return `$${(v / 1e3).toFixed(0)}K`;
+    return `$${Math.round(v)}`;
+  }
+
   function fmtUTC(isoStr) {
     if (!isoStr) return '—';
     return new Date(isoStr).toUTCString().replace(' GMT', ' UTC');
@@ -117,10 +126,18 @@
 
   Chart.register(rwaAnnotationsPlugin);
 
-  // Annotations shared by both case study charts
+  // Annotations for NVDA case study charts
   const CS_ANNOTATIONS = [
     { type: 'region', fromISO: '2026-11-23T13:46:00Z', toISO: '2026-11-23T14:02:00Z', label: 'News lands' },
     { type: 'line',   atISO:  '2026-11-23T14:30:00Z',                                  label: 'Opening bell' },
+  ];
+
+  // Annotations for GOLD case study charts
+  const CS_GOLD_ANNOTATIONS_OVERVIEW = [
+    { type: 'region', fromISO: '2026-11-21T22:00:00Z', toISO: '2026-11-22T23:00:00Z', label: 'Market shut' },
+  ];
+  const CS_GOLD_ANNOTATIONS_ZOOM = [
+    { type: 'line', atISO: '2026-11-22T23:00:00Z', label: 'Gold reopens' },
   ];
 
   // ── Charts ─────────────────────────────────────────────────────────────────
@@ -268,6 +285,7 @@
         <div class="card-meta">
           <span>${d.tokensUsed} token${d.tokensUsed !== 1 ? 's' : ''}</span>
           ${peerSpreadStr ? `<span>${peerSpreadStr}</span>` : ''}
+          ${fmtVol(d.volume24h) ? `<span>24h vol: ${fmtVol(d.volume24h)}</span>` : ''}
         </div>
         <div class="card-verdict" id="verdict-${asset}"><span class="verdict-loading">Checking oracle…</span></div>
       `;
@@ -396,6 +414,17 @@
     mainChart = makeChart(document.getElementById('main-chart').getContext('2d'), initialPoints);
     switchAsset(defaultAsset);
 
+    // Weekend volume stat line
+    const wv = data.weekendVol ?? {};
+    const wvEl = document.getElementById('weekend-vol-stat');
+    if (wvEl && Object.keys(wv).length) {
+      const fv = a => fmtVol(wv[a]) ?? '—';
+      wvEl.textContent =
+        `In the 24 hours to Sun 22 Nov 14:00 UTC, with markets shut, CoinMarketCap recorded ` +
+        `${fv('NVDA')} of tokenised NVDA, ${fv('GOLD')} of gold, ` +
+        `${fv('TSLA')} of TSLA and ${fv('SPY')} of SPY trading.`;
+    }
+
     // Case study — full weekend overview (band + line, no text labels — they'd overlap at the right edge)
     const csPoints = data.casestudy ?? [];
     makeChart(
@@ -415,6 +444,27 @@
       document.getElementById('cs-zoom-chart').getContext('2d'),
       zoomPoints,
       { annotations: CS_ANNOTATIONS }
+    );
+
+    // Case study — GOLD overview (Fri 20 Nov 20:00 to Mon 23 Nov 02:00 UTC)
+    const csGoldPoints = data.casestudy_gold ?? [];
+    makeChart(
+      document.getElementById('cs-gold-chart').getContext('2d'),
+      csGoldPoints,
+      { annotations: CS_GOLD_ANNOTATIONS_OVERVIEW.map(a => ({ ...a, label: null })) }
+    );
+
+    // Case study — GOLD zoom Sun 22 Nov 20:00 to Mon 23 Nov 02:00 UTC
+    const goldZoomFrom = new Date('2026-11-22T20:00:00Z').getTime();
+    const goldZoomTo   = new Date('2026-11-23T02:00:00Z').getTime();
+    const goldZoomPoints = csGoldPoints.filter(p => {
+      const t = new Date(p.time).getTime();
+      return t >= goldZoomFrom && t <= goldZoomTo;
+    });
+    makeChart(
+      document.getElementById('cs-gold-zoom-chart').getContext('2d'),
+      goldZoomPoints,
+      { annotations: CS_GOLD_ANNOTATIONS_ZOOM }
     );
 
     // Alert log — merge live + backtest

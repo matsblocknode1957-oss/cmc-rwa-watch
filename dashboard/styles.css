@@ -216,6 +216,19 @@ h2 {
 .chart-wrap--cs   { height: 280px; }
 .chart-wrap--zoom { height: 300px; }
 
+/* ── Weekend volume stat ──────────────────────────────────────────────────── */
+.weekend-vol-stat {
+  margin-top: 2rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 900px;
+  padding: 0.65rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
 /* ── Case study ───────────────────────────────────────────────────────────── */
 .casestudy-text {
   color: var(--muted);
