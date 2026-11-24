@@ -1,24 +1,5 @@
 // netlify/functions/data.js — Supabase data aggregator, no npm deps, Node 22 native fetch
-
-function median(arr) {
-  if (!arr.length) return null;
-  const s = [...arr].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
-
-function computeAssetStats(rows) {
-  const valid = rows
-    .filter(r => r.excluded_reason == null && !r.unit_mismatch)
-    .map(r => Number(r.price_adj_usd ?? r.token_price_usd))
-    .filter(v => Number.isFinite(v) && v > 0);
-  if (!valid.length) return { tokenMedian: null, tokensUsed: 0, peerSpread: null };
-  const med = median(valid);
-  const peerSpread = valid.length >= 2
-    ? (Math.max(...valid) - Math.min(...valid)) / med * 100
-    : null;
-  return { tokenMedian: med, tokensUsed: valid.length, peerSpread };
-}
+import { computeTokenMedian } from '../../lib/median.js';
 
 async function fetchAll(url, headers) {
   const rows = [];
@@ -44,7 +25,7 @@ function buildSeriesFromRows(rows) {
   return [...byTime.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([time, pollRows]) => {
-      const { tokenMedian } = computeAssetStats(pollRows);
+      const { tokenMedian } = computeTokenMedian(pollRows);
       const refRow = pollRows.find(r => r.ref_price_usd != null);
       return { time, tokenMedian, clPrice: refRow ? Number(refRow.ref_price_usd) : null };
     });
@@ -81,8 +62,8 @@ export const handler = async () => {
     const latestTime = tsData[0].collected_at;
 
     const since72h = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
-    const sCols = 'collected_at,asset,token_price_usd,price_adj_usd,excluded_reason,unit_mismatch,ref_price_usd';
-    const lCols = 'asset,token_symbol,issuer,crypto_id,token_price_usd,price_adj_usd,excluded_reason,unit_mismatch,ref_price_usd,ref_updated_at,market_open';
+    const sCols = 'collected_at,asset,token_price_usd,price_adj_usd,excluded_reason,unit_mismatch,ref_price_usd,token_volume_24h';
+    const lCols = 'asset,token_symbol,issuer,crypto_id,token_price_usd,price_adj_usd,excluded_reason,unit_mismatch,ref_price_usd,ref_updated_at,market_open,token_volume_24h';
 
     // Parallel: alerts, per-asset 72h series, case study
     const [alertsData, ...assetRows] = await Promise.all([
@@ -122,7 +103,7 @@ export const handler = async () => {
       const asset = ASSETS[i];
       const rows = latestRows.filter(r => r.asset === asset);
       if (!rows.length) continue;
-      const { tokenMedian, tokensUsed, peerSpread } = computeAssetStats(rows);
+      const { tokenMedian, tokensUsed, peerSpread } = computeTokenMedian(rows);
       const refRow = rows.find(r => r.ref_price_usd != null) ?? rows[0];
       const clPrice = refRow?.ref_price_usd != null ? Number(refRow.ref_price_usd) : null;
       const refUpdatedAt = refRow?.ref_updated_at ?? null;

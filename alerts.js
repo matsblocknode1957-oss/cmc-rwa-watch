@@ -1,27 +1,26 @@
 // alerts.js — divergence and stale alert logic.
 // Used by collector.js (live) and scripts/backtest-alerts.js (replay).
 
+import { computeTokenMedian } from './lib/median.js';
+
 export const TROY_OZ_PER_GRAM = 31.1035;
 
-function median(arr) {
-  if (!arr.length) return null;
-  const s = [...arr].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
+const THRESHOLDS = {
+  SPY:  { marketOpen: { trig: 2.0, shut: 1.0  }, marketClosed: { trig: 3.0, shut: 1.5  } },
+  NVDA: { marketOpen: { trig: 2.0, shut: 1.0  }, marketClosed: { trig: 3.0, shut: 1.5  } },
+  TSLA: { marketOpen: { trig: 2.0, shut: 1.0  }, marketClosed: { trig: 3.0, shut: 1.5  } },
+  GOLD: { marketOpen: { trig: 1.5, shut: 0.75 }, marketClosed: { trig: 1.5, shut: 0.75 } },
+};
+const DEFAULT_THRESHOLDS = { marketOpen: { trig: 2.0, shut: 1.0 }, marketClosed: { trig: 3.0, shut: 1.5 } };
 
 // Compute gap from a set of rows for one asset.
-// Requires at least 3 rows with excluded_reason null and unit_mismatch false.
+// Requires at least 3 valid tokens (excluded_reason null, !unit_mismatch).
 // Returns { tokenMedian, gap, tokensUsed } or null.
 function computeGapFromRows(rows, clPrice) {
   if (!clPrice || clPrice === 0) return null;
-  const prices = rows
-    .filter(r => r.excluded_reason == null && !r.unit_mismatch)
-    .map(r => Number(r.price_adj_usd ?? r.token_price_usd))
-    .filter(v => Number.isFinite(v));
-  if (prices.length < 3) return null;
-  const med = median(prices);
-  return { tokenMedian: med, gap: (med - clPrice) / clPrice * 100, tokensUsed: prices.length };
+  const { tokenMedian, tokensUsed } = computeTokenMedian(rows);
+  if (tokensUsed < 3) return null;
+  return { tokenMedian, gap: (tokenMedian - clPrice) / clPrice * 100, tokensUsed };
 }
 
 // Rehydrate rows that are missing excluded_reason or price_adj_usd (old rows pre-migration).
@@ -41,6 +40,8 @@ export function rehydrateRows(rows, staleIds) {
     if (needsExcluded) {
       if (row.issuer === 'Hyperliquid Assets') {
         excludedReason = 'hyperliquid_perp';
+      } else if (row.token_volume_24h == null || Number(row.token_volume_24h) === 0) {
+        excludedReason = 'no_volume';
       } else if (row.crypto_id != null && staleIds.has(Number(row.crypto_id))) {
         excludedReason = 'stale';
       }
@@ -101,8 +102,9 @@ export function computeAlerts({ currentRows, prevRows, clData, openAlerts, marke
 
     const isMarketOpen = marketOpenMap[asset] ?? false;
     const marketState  = isMarketOpen ? 'open' : 'closed';
-    const openThresh   = isMarketOpen ? 2 : 3;
-    const closeThresh  = isMarketOpen ? 1 : 1.5;
+    const thresholds   = THRESHOLDS[asset] ?? DEFAULT_THRESHOLDS;
+    const openThresh   = isMarketOpen ? thresholds.marketOpen.trig  : thresholds.marketClosed.trig;
+    const closeThresh  = isMarketOpen ? thresholds.marketOpen.shut  : thresholds.marketClosed.shut;
 
     const curr = computeGapFromRows(currAssetRows, cl.price);
     if (!curr) continue;
@@ -233,7 +235,7 @@ export async function loadPrevPollRows(supabase, currentCollectedAt) {
     const prevTime = ts[0].collected_at;
     const { data, error } = await supabase
       .from('rwa_quotes')
-      .select('asset, excluded_reason, unit_mismatch, price_adj_usd, token_price_usd, ref_price_usd, ref_updated_at, crypto_id, issuer, token_symbol, market_open, chainlink_desc')
+      .select('asset, excluded_reason, unit_mismatch, price_adj_usd, token_price_usd, token_volume_24h, ref_price_usd, ref_updated_at, crypto_id, issuer, token_symbol, market_open, chainlink_desc')
       .eq('collected_at', prevTime);
     if (error) { console.warn(`  loadPrevPollRows: ${error.message}`); return []; }
     return data ?? [];

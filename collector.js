@@ -247,10 +247,12 @@ async function collect() {
 
       if (unitMismatch) flagged++;
 
-      // Excluded reason takes priority: hyperliquid perpetual, then stale feed
+      // Excluded reason takes priority: hyperliquid perpetual, no volume, then stale feed
       let excludedReason = null;
       if (token.issuer_name === 'Hyperliquid Assets') {
         excludedReason = 'hyperliquid_perp';
+      } else if (token.volume_24h == null || token.volume_24h === 0) {
+        excludedReason = 'no_volume';
       } else if (token.crypto_id != null && staleIds.has(token.crypto_id)) {
         excludedReason = 'stale';
       }
