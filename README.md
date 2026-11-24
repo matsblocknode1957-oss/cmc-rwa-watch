@@ -4,7 +4,7 @@ Tokenised stocks and gold keep trading when their real markets are closed. The C
 
 **Live dashboard:** https://rwa-watch.netlify.app  
 **Oracle check API:** https://rwa-watch.netlify.app/api/check  
-**Demo video:** coming soon  
+**Demo video:** https://youtu.be/ZanwKueQmp0  
 Built by [FintechCheck](https://pegcheck.uk) · [@PegCheckApp](https://x.com/PegCheckApp)  
 Track: Real World Assets · [#BuildwithCMC](https://x.com/hashtag/BuildwithCMC)
 
