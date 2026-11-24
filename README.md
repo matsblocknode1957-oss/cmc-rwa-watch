@@ -28,11 +28,11 @@ At 09:32 UTC, with the US market shut, tokenised NVDA was trading 3.49% below a 
 
 Tokens drifted upward all weekend while the oracle stayed put, reaching +9.45% above the oracle by Mon 09:17 UTC before any news broke. Nvidia reinstated Jensen Huang as CEO (news landed 13:46–14:02 UTC); at 14:16 UTC tokens were $160.66 vs oracle $143.52 (+11.94%, volume-weighted). The oracle caught up at 14:30:37. The backtest flags this weekend divergence as early as Sat 21 Nov 22:17 UTC.
 
-### 20–22 Nov — gold: the oracle overstated collateral all weekend
+### 20–22 Nov — gold: tokens and the oracle disagreed all weekend
 
-After Friday's market close the oracle settled at $3,575.31 and barely moved. Tokens traded between $3,500 and $3,553 all weekend — up to 2.12% below the oracle (Sat 21 Nov 04:30 UTC). When gold reopened Sunday 23:00 UTC, tokens and oracle quickly converged. The normal open-market gap is roughly −0.27% (token discount).
+Gold markets shut at 22:00 UTC on Friday. The oracle's last update, at 23:13 UTC, put gold at $3,575.31, and it stayed there until Sunday evening. Tokenised gold kept trading but never reached that price: it sat between $3,500 and $3,553, up to 2.12% below the oracle (Sat 21 Nov 04:30 UTC). When gold reopened at 23:00 UTC on Sunday it traded around $3,581, close to the oracle, and the tokens went back to their usual small discount (about 0.27%). This time it was the tokens, not the oracle, that were off.
 
-This is the risky direction for lending: all weekend the oracle was valuing gold collateral above what the market would actually pay.
+That is the point: while the market is shut, nobody knows which price is right, and a lending protocol is relying on one of them.
 
 ### Real money
 
@@ -102,26 +102,26 @@ curl https://rwa-watch.netlify.app/api/check?asset=NVDA
 | `NO_ORACLE` | No Chainlink feed exists for this asset on Arbitrum One (QQQ). |
 | `UNKNOWN` | Our latest poll is more than 35 minutes old, or the gap could not be computed. |
 
-**Example response (trimmed):**
+**Example response (real, 24 Nov 13:17 UTC, during the live alert):**
 
 ```json
 {
   "asset": "NVDA",
-  "verdict": "OK",
-  "reason": "Gap of -0.21% is within normal bounds (market closed, threshold 3%).",
+  "verdict": "DO_NOT_TRUST",
+  "reason": "An active divergence alert is open for NVDA (gap -2.35%, market closed).",
   "market": { "state": "closed" },
   "oracle": {
     "source": "Chainlink",
     "network": "Arbitrum One",
     "feed_address": "0x4881A4418b5F2460B21d6F08CD5aA0678a7f262F",
-    "price": 143.52,
-    "updated_at": "2026-11-24T12:36:00.000Z",
-    "age_minutes": 12
+    "price": 161.11,
+    "updated_at": "2026-11-24T13:01:04+00:00",
+    "age_minutes": 17
   },
-  "tokens": { "median_price": 143.22, "tokens_used": 4, "volume_24h_usd": 2341800, "excluded_count": 2 },
-  "gap_pct": -0.2091,
-  "alert_open": false,
-  "data_as_of": "2026-11-24T12:47:38.142+00:00"
+  "tokens": { "median_price": 157.324094, "tokens_used": 7, "volume_24h_usd": 784236695.32, "excluded_count": 1 },
+  "gap_pct": -2.3499,
+  "alert_open": true,
+  "data_as_of": "2026-11-24T13:02:37.286+00:00"
 }
 ```
 
@@ -141,7 +141,7 @@ CORS is open. Cache: 60 seconds. Full spec: [`/openapi.json`](https://rwa-watch.
 
 - **No per-token last-updated timestamp.** We detect frozen prices ourselves: eight consecutive polls with an identical price mark a token as stale. One SPY token sat at exactly $714.344610 for days.
 - **Symbol collisions.** Three tokens are all called "SPY". `crypto_id` is the only safe unique key.
-- **Non-tradable rows.** Hyperliquid perpetuals appear at roughly half the spot price with zero volume. "NA (Derivatives)" rows with zero volume look like tokens but are not spot prices. Both are excluded.
+- **Non-tradable rows.** Hyperliquid perpetuals sit at frozen, stale prices (the TSLA and QQQ ones at roughly half the spot price) with zero volume. "NA (Derivatives)" rows show a sensible-looking price but zero volume. Both look like tokens but are not tradable spot prices, so both are excluded.
 - **Mixed units for gold.** Some gold tokens are priced per gram, not per troy ounce. We detect and correct the discrepancy using the Chainlink reference price as a sanity check.
 - **Wrong parameter name.** The quotes endpoint requires `rwa_id`, not `id` — this cost us a failed first call.
 - **Rolling volume window.** `volume_24h` is always rolling, so measuring "volume while the market is shut" requires choosing the time window carefully.
