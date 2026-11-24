@@ -134,7 +134,7 @@
 
   // Annotations for GOLD case study charts
   const CS_GOLD_ANNOTATIONS_OVERVIEW = [
-    { type: 'region', fromISO: '2026-11-21T22:00:00Z', toISO: '2026-11-22T23:00:00Z', label: 'Market shut' },
+    { type: 'region', fromISO: '2026-11-20T22:00:00Z', toISO: '2026-11-22T23:00:00Z', label: 'Market shut' },
   ];
   const CS_GOLD_ANNOTATIONS_ZOOM = [
     { type: 'line', atISO: '2026-11-22T23:00:00Z', label: 'Gold reopens' },
