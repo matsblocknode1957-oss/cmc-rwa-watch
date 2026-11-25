@@ -63,16 +63,16 @@
     <section class="section casestudy-section">
       <h2>20–22 Nov: gold tokens and the oracle disagreed all weekend</h2>
       <p class="casestudy-text">
-        Gold markets shut at 22:00 UTC on Friday. The oracle's last update, at 23:13 UTC, put gold at <strong>$3,575.31</strong>, and it held there apart from one brief update at 11:44 UTC on Saturday 21 Nov to $3,538.18.
-        Tokenised gold kept trading but never reached that price: it sat between <strong>$3,500</strong> and <strong>$3,553</strong>, up to <strong>−2.12%</strong> below the oracle (Sat 21 Nov 04:30 UTC).
-        When gold reopened at 23:00 UTC on Sunday it traded around <strong>$3,581</strong>, close to the oracle, and the tokens went back to their usual small discount (about 0.27%).
-        This time it was the tokens, not the oracle, that were off.
+        Gold markets shut at 22:00 UTC on Friday. While they were shut, the Chainlink XAU/USD feed on Arbitrum didn't settle on one price. In three bursts (Friday night, Saturday late morning, and Sunday afternoon into evening) it flipped back and forth between exactly two values, $3,538.18 and $3,575.31, about 1% apart, more than 50 times, and in between it went quiet for long stretches, including 24 hours from Saturday to Sunday. Tokenised gold kept trading between <strong>$3,500</strong> and <strong>$3,553</strong>, up to <strong>−2.12%</strong> below the oracle when the oracle sat on its higher value (Sat 21 Nov 04:30 UTC). When gold reopened at 23:00 UTC on Sunday it traded around <strong>$3,581</strong>, and the tokens went back to their usual small discount (about 0.27%). Over the weekend the tokens drifted low, and even the oracle couldn't settle on a price.
+      </p>
+      <p class="casestudy-text">
         That is the point: while the market is shut, nobody knows which price is right, and a lending protocol is relying on one of them.
       </p>
       <p class="chart-subtitle">Weekend overview · 20–23 Nov 2026</p>
       <div class="chart-wrap chart-wrap--cs">
         <canvas id="cs-gold-chart"></canvas>
       </div>
+      <p class="chart-note">Chart shows our 15-minute samples. The oracle's two-price flipping happened faster than that, so most of it falls between samples.</p>
       <p class="chart-subtitle" style="margin-top:1.5rem">Around the reopen · Sun 22 Nov 20:00 – Mon 23 Nov 02:00 UTC</p>
       <div class="chart-wrap chart-wrap--zoom">
         <canvas id="cs-gold-zoom-chart"></canvas>

@@ -30,7 +30,7 @@ Tokens drifted upward all weekend while the oracle stayed put, reaching +9.45% a
 
 ### 20–22 Nov — gold: tokens and the oracle disagreed all weekend
 
-Gold markets shut at 22:00 UTC on Friday. The oracle's last update, at 23:13 UTC, put gold at $3,575.31, and it held there apart from one brief update at 11:44 UTC on Saturday 21 Nov to $3,538.18. Tokenised gold kept trading but never reached that price: it sat between $3,500 and $3,553, up to 2.12% below the oracle (Sat 21 Nov 04:30 UTC). When gold reopened at 23:00 UTC on Sunday it traded around $3,581, close to the oracle, and the tokens went back to their usual small discount (about 0.27%). This time it was the tokens, not the oracle, that were off.
+Gold markets shut at 22:00 UTC on Friday. While they were shut, the Chainlink XAU/USD feed on Arbitrum didn't settle on one price. In three bursts (Friday night, Saturday late morning, and Sunday afternoon into evening) it flipped back and forth between exactly two values, $3,538.18 and $3,575.31, about 1% apart, more than 50 times, and in between it went quiet for long stretches, including 24 hours from Saturday to Sunday. Tokenised gold kept trading between $3,500 and $3,553, up to 2.12% below the oracle when the oracle sat on its higher value (Sat 21 Nov 04:30 UTC). When gold reopened at 23:00 UTC on Sunday it traded around $3,581, and the tokens went back to their usual small discount (about 0.27%). Over the weekend the tokens drifted low, and even the oracle couldn't settle on a price.
 
 That is the point: while the market is shut, nobody knows which price is right, and a lending protocol is relying on one of them.
 

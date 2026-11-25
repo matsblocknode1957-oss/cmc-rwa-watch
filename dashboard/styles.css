@@ -253,6 +253,14 @@ h2 {
   font-weight: 500;
   margin-bottom: 0.5rem;
 }
+.chart-note {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-style: italic;
+  margin-top: 0.4rem;
+  margin-bottom: 0.25rem;
+  max-width: 800px;
+}
 
 /* ── Alerts table ─────────────────────────────────────────────────────────── */
 .alerts-note {
