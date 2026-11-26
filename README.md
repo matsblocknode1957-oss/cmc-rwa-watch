@@ -18,11 +18,15 @@ If the real price moves while the oracle is frozen, the protocol is valuing coll
 
 ---
 
-## What we found (17–24 Nov 2026)
+## What we found (17–25 Nov 2026)
 
 ### Caught live — 24 Nov, NVDA
 
 At 09:32 UTC, with the US market shut, tokenised NVDA was trading 3.49% below a Chainlink price that had not updated for 762 minutes. RWA Watch opened a live alert. At the 14:30 opening bell the oracle moved to meet the tokens, and the alert closed itself at 14:32 UTC with the gap at +0.26%. Nobody touched it.
+
+### Caught again — 25 Nov, NVDA
+
+At 07:47 UTC, with the US market shut, tokenised NVDA was trading 3.97% below a Chainlink price that had not updated for 654 minutes. RWA Watch opened a live alert. It closed itself at 14:48 UTC, after the opening bell, with the gap at +0.43%.
 
 ### 23 Nov — NVDA: tokens moved first, the oracle caught up at the bell
 
