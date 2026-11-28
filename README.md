@@ -18,7 +18,7 @@ If the real price moves while the oracle is frozen, the protocol is valuing coll
 
 ---
 
-## What we found (17–25 Nov 2026)
+## What we found (17–27 Nov 2026)
 
 ### Caught live — 24 Nov, NVDA
 
@@ -27,6 +27,10 @@ At 09:32 UTC, with the US market shut, tokenised NVDA was trading 3.49% below a 
 ### Caught again — 25 Nov, NVDA
 
 At 07:47 UTC, with the US market shut, tokenised NVDA was trading 3.97% below a Chainlink price that had not updated for 654 minutes. RWA Watch opened a live alert. It closed itself at 14:48 UTC, after the opening bell, with the gap at +0.43%.
+
+### Caught a third time — 27 Nov, NVDA (after Thanksgiving)
+
+At 02:46 UTC, after the US market had been shut all Thursday for Thanksgiving, tokenised NVDA was trading 3.15% above a Chainlink price that had not updated for 355 minutes. This time the oracle was the one that was too low. The alert closed itself at 13:18 UTC, before the open, once the oracle's pre-market update brought the gap down to 1.19%.
 
 ### 23 Nov — NVDA: tokens moved first, the oracle caught up at the bell
 
@@ -45,6 +49,12 @@ In the 24 hours to Sun 22 Nov 14:00 UTC, with markets shut, CoinMarketCap record
 ### Honest note
 
 This covers a few closed-market periods, not years of data. The claim is not "tokens predict the open"; it is "while the market is shut, tokens and the oracle can disagree by several per cent, and nobody knows which is right until it reopens."
+
+---
+
+## What's next: from warning to protection
+
+RWA Watch already tells you when not to trust the oracle. The next step is acting on it. Its verdict can feed StableGuard, our on-chain circuit breaker (already live on Arbitrum Sepolia, where it zeroes Morpho market caps during a stablecoin depeg). For a lending market that accepts tokenised NVDA or gold as collateral, that means new borrowing pauses automatically while the market is shut and the token price and oracle disagree, then reopens on its own once they agree again. Repaying and adding collateral stay open the whole time. The detection side is RWA Watch, the protection side is StableGuard; joining them is the next build.
 
 ---
 
